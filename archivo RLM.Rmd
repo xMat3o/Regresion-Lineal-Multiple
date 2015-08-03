@@ -1,0 +1,252 @@
+---
+title: "Trabajo Final"
+author: "Mateo Larco"
+date: "2 de agosto de 2015"
+output: html_document
+---
+
+___2.-  Genere un archivo rlm.R, de tal forma que le permita responder las siguientes preguntas:___
+
+___2.1.- Leer los archivos poblacion1.xlsx y poblacion2.xlsx , y analizar sus dimensiones.___
+
+
+```{r,echo=FALSE,eval=TRUE}
+options(warn=-1)
+library(readxl)
+library(DT)
+poblacion1<-read_excel("poblacion1.xlsx", sheet=1, na=" ")
+poblacion2<-read_excel("poblacion2.xlsx", sheet=1, na=" ")
+
+datatable(poblacion1)
+datatable(poblacion2)
+```
+
+Analizando la información de población1 disponemos de `r nrow(poblacion1)` observaciones
+de `r ncol(poblacion1)` variables.
+De la misma forma, analizando la información de la población2 disponemos de `r nrow(poblacion2)` observaciones de `r ncol(poblacion2)` variables.
+
+___2.2.- Una los archivos leídos en un mismo objeto llamado población.___
+
+Usamos merge para unir las poblaciones:
+```{r,echo=FALSE,eval=TRUE}
+poblacion <- merge(poblacion1,poblacion2,by="identificador",suffixes=c("",""))
+datatable(poblacion)
+```
+
+___2.3.- Cree un código que identiﬁque la clase de cada variable y genere diagramas de cajas para variables continuas y diagramas de barras para variables discretas.___
+
+Variables continuas:
+
+```{r, fig.align="center",fig.width=5,fig.height=4}
+for(j in 2:dim(poblacion)[2]){
+  if(is.numeric(poblacion[,j])==TRUE){
+    boxplot(poblacion[,j])
+    title(names(poblacion)[j])
+  }
+}
+
+```
+
+Variables discretas:
+
+```{r, fig.align="center",fig.width=5,fig.height=4}
+for(j in 2:dim(poblacion)[2]){
+  if(is.numeric(poblacion[,j])!=TRUE){
+    barplot(table(poblacion[,j]))
+    title(names(poblacion)[j])
+  }
+}
+```
+
+___2.4.- Cree un código que calcule automáticamente el mínimo, media, máximo, desviación estándar, primer cuartil de cada variable numérica y la frecuencia en el caso de variables categóricas.___
+```{r,echo=FALSE,eval=TRUE}
+tipo <- 1:dim(poblacion)[2]
+maxi <- 1:dim(poblacion)[2]
+mini <- 1:dim(poblacion)[2]
+media <- 1:dim(poblacion)[2]
+desviacion <- 1:dim(poblacion)[2]
+primer_cuartil <- 1:dim(poblacion)[2]
+
+
+
+for(j in 2:dim(poblacion)[2]){
+      if(is.numeric(poblacion[,j])==TRUE){
+          tipo[j] <- class(poblacion[,j])
+          maxi[j] <- max(poblacion[,j])
+          mini[j] <- min(poblacion[,j])
+          media[j] <- mean(poblacion[,j])
+          desviacion[j] <- sd(poblacion[,j])
+          primer_cuartil[j] <- quantile(poblacion[,j],probs=seq(0,1,0.25),na.rm = FALSE)[2]
+        }else {
+            
+            tipo[j] <- class(poblacion[,j])
+            maxi[j] <- NA
+            mini[j] <- NA
+            media[j] <- NA
+            desviacion[j] <- NA
+            primer_cuartil[j] <- NA 
+            table(poblacion[,j])/dim(poblacion)[1]
+          }
+}
+```
+
+
+```{r,echo=FALSE,eval=TRUE}
+resultados1 <- data.frame(names(poblacion),tipo,maxi,mini,media,desviacion,primer_cuartil)
+datatable(resultados1)
+```
+
+Ahora considerando las variables categoricas "region" y "serv.bas.compl" calculamos 
+sus frecuencias:
+
+```{r,echo=FALSE,eval=TRUE}
+frecuencia_region  <- table(poblacion[,9])/dim(poblacion)[1]
+frecuencia_ser.bas.compl <- table(poblacion[,10])/dim(poblacion)[1]
+
+frecuencia_region
+frecuencia_ser.bas.compl
+```
+___2.5.- Calcule la correlación entre la variable dependiente poblacion y cada una de las variables explicativas (numéricas).___
+
+```{r,echo=FALSE,eval=TRUE}
+correlacion <- 3:dim(poblacion)[2]
+correlacion[1] <- NA
+
+
+for(j in 2:dim(poblacion)[2]){
+    if(is.numeric(poblacion[,j])==TRUE){
+      correlacion[j] <- cor(poblacion[,2], poblacion[,j])
+      } else {
+          correlacion[j] <- NA
+        }
+  }
+```
+
+Ahora la correlación con cada variable será:
+
+```{r,echo=FALSE,eval=TRUE}
+resultados2 <- data.frame(names(poblacion),correlacion) 
+datatable(resultados2)
+```
+
+___2.6.- Considere la variable categórica serv.bas.compl con una conﬁabilidad del 90%, ¿Puede asumirse que la media de la variable poblacion en el grupo serv.bas.compl: SI es distinta a la media del grupo serv.bas.compl: NO ?___
+
+
+Transformo a variable factor las columnas "region" y "serv.bas.compl" 
+para poder usar el test t(student)
+
+```{r,echo=TRUE,eval=TRUE}
+serv.bas.compl_fac <- factor(poblacion[,"serv.bas.compl"],levels=c("SI","NO"),labels=c("si","no"))
+region_fac <- factor(poblacion[,"region"],levels=c("A","B"),labels=c("a","b"))
+poblacion_fac <- data.frame(poblacion[,1:7],region_fac,serv.bas.compl_fac)
+```
+
+Diagrama de cajas:
+
+
+```{r, fig.align="center",fig.width=5,fig.height=4}
+plot(poblacion ~ serv.bas.compl_fac , data = poblacion_fac) 
+```
+
+
+Por último realizamos la prueba de hipotesis: 
+
+
+```{r,echo=FALSE,eval=TRUE}
+pr_hipotesis <- t.test(poblacion ~ serv.bas.compl_fac , data=poblacion_fac, conf.level=0.9)
+pr_hipotesis
+```
+
+Concluimos que se acepta que la diferencia de medias es igual a cero.
+
+___2.7.- Considerando los cálculos anteriores genere el modelo de regresión 
+lineal múltiple que mejor se ajuste a los datos. 
+Interprete los coeﬁcientes obtenidos.___
+
+
+
+El modelo de regresión lineal multiple lo realizamos con la variable independiente "poblacion", y con las variables dependientes "var.pobl.mayor", "menores.18", "tasa.crimen" pues estas presentaron menor correlación entre ellas.
+
+```{r,echo=FALSE,eval=TRUE}
+reg1 <- lm(poblacion~var.pobl.mayor+menores.18+tasa.crimen, data=poblacion_fac)
+summary(reg1)
+```
+
+es decir nuestro modelo resultante estaría dado por la expresión:
+$$\hat{`r substring(names(poblacion_fac)[2],1,2)`} = `r reg1$coefficients[1]` + `r reg1$coefficients[2]`\hat{`r substring(names(poblacion_fac)[3],1,2)`}+`r reg1$coefficients[3]`\hat{`r substring(names(poblacion_fac)[4],1,2)`}`r reg1$coefficients[4]`  \hat{`r substring(names(poblacion_fac)[7],1,2)`}$$
+
+___Interpretación:___  Si las demás variables se mantienen constantes y si `r names(poblacion_fac)[3]` se incrementa en una unidad, entonces `r names(poblacion_fac)[2]`
+`r tex <-"aumenta"; if(reg1$coefficients[3]<0) (tex<-"disminuye");tex` en promedio `r reg1$coefficients[2]` unidades.
+
+Si las demás variables se mantienen constantes y si `r names(poblacion_fac)[4]` se incrementa en una unidad, entonces `r names(poblacion_fac)[2]`
+`r tex <-"aumenta"; if(reg1$coefficients[3]<0) (tex<-"disminuye");tex` en promedio `r reg1$coefficients[3]` unidades.
+
+Si las demás variables se mantienen constantes y si `r names(poblacion_fac)[7]` se incrementa en una unidad, entonces `r names(poblacion_fac)[2]`
+`r tex <-"aumenta"; if(reg1$coefficients[4]<0) (tex<-"disminuye");tex` en promedio `r reg1$coefficients[4]` unidades.
+
+__2.7.- Interprete el R2__
+
+```{r,echo=FALSE,eval=TRUE}
+R2 <- summary(reg1)[["r.squared"]]
+porcentaje <- 100*summary(reg1)[["r.squared"]] 
+```
+Analizando la regresión se tuvo un $R^2$ de `r R2`  
+
+El modelo de regresión lineal obtenido explica el `r porcentaje  `% de la variabilidad total
+
+
+___2.8.-  Analice la signiﬁcancia de la regresión y de cada uno de los 
+parámetros individuales.___
+
+Realizando la tabla __ANOVA__ tenemos los siguientes resultados:
+
+```{r,echo=FALSE,eval=TRUE}
+anova <- aov(reg1)
+summary(anova)[[1]]
+```
+
+Como $F=`r summary(anova)[[1]][1,4]`$ es `r tex<-"menor"; if(summary(anova)[[1]][1,4]>qf(0.95,3,(nrow(poblacion_fac)-4))) tex<-"mayor"; tex` que $F_{3,`r (nrow(poblacion_fac)-4)`}(\frac{\alpha}{2})= `r qf(0.95,3,(nrow(poblacion_fac)-4))`$ `r tex<-"no rechazo"; if(summary(anova)[[1]][1,4]>qf(0.95,3,(nrow(poblacion_fac)-4))) tex<-"rechazo"; tex`
+$H_0: \beta_2=0$.
+
+Como $F=`r summary(anova)[[1]][2,4]`$ es `r tex<-"menor"; if(summary(anova)[[1]][2,4]>qf(0.95,3,(nrow(poblacion_fac)-4))) tex<-"mayor"; tex` que $F_{3,`r (nrow(poblacion_fac)-4)`}(\frac{\alpha}{2})= `r qf(0.95,3,(nrow(poblacion_fac)-4))`$ `r tex<-"no rechazo"; if(summary(anova)[[1]][2,4]>qf(0.95,3,(nrow(poblacion_fac)-4))) tex<-"rechazo"; tex`
+$H_0: \beta_3=0$.
+
+Como $F=`r summary(anova)[[1]][3,4]`$ es `r tex<-"menor"; if(summary(anova)[[1]][3,4]>qf(0.95,3,(nrow(poblacion_fac)-4))) tex<-"mayor"; tex` que $F_{3,`r (nrow(poblacion_fac)-4)`}(\frac{\alpha}{2})= `r qf(0.95,3,(nrow(poblacion_fac)-4))`$ `r tex<-"no rechazo"; if(summary(anova)[[1]][3,4]>qf(0.95,3,(nrow(poblacion_fac)-4))) tex<-"rechazo"; tex`
+$H_0: \beta_4=0$.
+
+La regresión __no es significativa__
+
+
+
+
+__2.9.-  Realice un análisis detallado de los residuos.__
+
+```{r,echo=FALSE,eval=TRUE}
+residuos<-1:40  
+for(i in 1:40){
+    residuos[i]<-summary(reg1)[["residuals"]][i]
+  }
+```
+
+poblacion vs residuos
+
+
+```{r, fig.align="center",fig.width=5,fig.height=4}
+plot(poblacion[,"poblacion"],residuos)
+```
+
+histograma 
+
+
+```{r, fig.align="center",fig.width=5,fig.height=4}
+hist(residuos)
+```
+
+
+```{r, fig.align="center",fig.width=5,fig.height=4}
+qqnorm(residuos)
+qqline(residuos,col="blue")
+```
+
+
+
